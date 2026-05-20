@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express'
 import dotenv from 'dotenv'
 import bcrypt from 'bcryptjs'
 import prisma from './prisma'
+import jwt from 'jsonwebtoken'
 
 dotenv.config()
 
@@ -56,6 +57,53 @@ app.post('/auth/register', async (req: Request, res: Response) => {
 
   } catch (error) {
     console.error('Registration error:', error)
+    res.status(500).json({ error: 'Внутренняя ошибка сервера' })
+  }
+})
+
+// ЛОГИН ПОЛЬЗОВАТЕЛЯ
+app.post('/auth/login', async (req: Request, res: Response) => {
+  try {
+    const { email, password } = req.body
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email и пароль обязательны' })
+    }
+
+    // Ищем пользователя по email
+    const user = await prisma.user.findUnique({
+      where: { email }
+    })
+
+    if (!user) {
+      return res.status(401).json({ error: 'Неверный email или пароль' })
+    }
+
+    // Сравниваем пароль
+    const isValid = await bcrypt.compare(password, user.passwordHash)
+
+    if (!isValid) {
+      return res.status(401).json({ error: 'Неверный email или пароль' })
+    }
+
+    // Генерируем JWT
+    const token = jwt.sign(
+      { userId: user.id, email: user.email },
+      process.env.JWT_SECRET!,
+      { expiresIn: '7d' }
+    )
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name
+      }
+    })
+
+  } catch (error) {
+    console.error('Login error:', error)
     res.status(500).json({ error: 'Внутренняя ошибка сервера' })
   }
 })
