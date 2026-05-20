@@ -1,0 +1,148 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ========== ПОЛЬЗОВАТЕЛИ ==========
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  createdAt    DateTime @default(now())
+
+  tasks           Task[]
+  habits          HabitLog[]
+  meals           MealLog[]
+  stats           DailyStat[]
+  achievements    UserAchievement[]
+  foodProducts    FoodProduct[]
+  dailyChecklists DailyChecklist[]
+}
+
+// ========== ЗАДАЧИ (гибкая система) ==========
+model Task {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title  String
+  isDone Boolean   @default(false)
+  date   DateTime? // если null — задача без даты (например, "на год")
+
+  // Тип: daily, weekly, monthly, yearly, once
+  type String @default("once") // once, daily, weekly, monthly, yearly
+
+  // Для недельных задач — номер недели (ISO)
+  weekNumber Int?
+  year       Int?
+
+  order Int @default(0) // для сортировки внутри дня/недели
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ========== ЕЖЕДНЕВНЫЕ ПРИВЫЧКИ (вода, порядок и т.д.) ==========
+model HabitLog {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  habitName String // "вода", "порядок", "детокси", "движение", "дыхание", "фокус", "питание"
+  date      DateTime // день, к которому относится
+  isDone    Boolean  @default(false)
+
+  @@unique([userId, habitName, date]) // один пользователь — одна привычка в день
+}
+
+// ========== ЗОЖ: ПРОДУКТЫ (пользовательские списки) ==========
+model FoodProduct {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name     String // "творог", "курица", "овсянка"
+  category String // белок_завтрак, жир_завтрак, углевод_завтрак, белок_обед, углевод_обед, овощи_обед, белок_ужин, овощи_ужин
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+}
+
+// ========== ЗОЖ: ЛОГ ПРИЁМОВ ПИЩИ (что съел по плану) ==========
+model MealLog {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date     DateTime // день
+  mealType String // breakfast, lunch, dinner
+  wasEaten Boolean  @default(false) // съеден по плану
+
+  // Что именно сгенерировалось/выбрал пользователь (опционально)
+  protein    String?
+  fat        String?
+  carbs      String?
+  vegetables String?
+  dressing   String?
+
+  createdAt DateTime @default(now())
+}
+
+// ========== ЗОЖ: ЕЖЕДНЕВНЫЙ ЧЕК-ЛИСТ (тренировка, магний, сон, срывы) ==========
+model DailyChecklist {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date DateTime @unique // один документ на пользователя в день
+
+  trainingDone     Boolean @default(false) // тренировка 10+ мин
+  magnesiumTaken   Boolean @default(false)
+  noEveningSnack   Boolean @default(false) // не срывался вечером
+  sleptBefore23_30 Boolean @default(false)
+  sleepHours       Float? // количество часов сна
+
+  dayCompleted Boolean @default(false) // нажал "Завершить день"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ========== СТАТИСТИКА (вес, заметки) ==========
+model DailyStat {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date   DateTime
+  weight Float? // вес утром
+  note   String? // текстовая заметка
+
+  @@unique([userId, date])
+}
+
+// ========== ЧЕЛЛЕНДЖИ И ДОСТИЖЕНИЯ ==========
+model Achievement {
+  id          String  @id @default(uuid())
+  name        String // "5 дней без срывов"
+  description String?
+  condition   String // JSON строка с условием, например {"noEveningSnack": 5, "days": 5}
+
+  achievements UserAchievement[]
+}
+
+model UserAchievement {
+  id            String      @id @default(uuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  unlockedAt DateTime @default(now())
+
+  @@unique([userId, achievementId])
+}
