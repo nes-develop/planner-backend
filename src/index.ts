@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs'
 import prisma from './prisma'
 import jwt from 'jsonwebtoken'
 import { verifyToken, AuthRequest } from './middleware/auth'
+import cors from 'cors'
 
 dotenv.config()
 
@@ -11,6 +12,11 @@ console.log('JWT_SECRET from env:', process.env.JWT_SECRET)
 
 const app = express()
 const PORT = process.env.PORT || 4000
+
+app.use(cors({
+  origin: 'http://localhost:5173',  // разрешаем только наш фронт
+  credentials: true
+}))
 
 app.use(express.json())
 
