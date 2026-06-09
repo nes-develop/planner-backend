@@ -196,7 +196,10 @@ app.post('/api/tasks', verifyToken, async (req: AuthRequest, res: Response) => {
                 order: order || 0
             }
         })
-        res.status(201).json(task)
+        res.status(201).json({
+            ...task,
+            date: task.date ? task.date.toISOString().split('T')[0] : null
+        })
     } catch (error) {
         console.error('Error creating task:', error)
         res.status(500).json({ error: 'Ошибка создания задачи' })
@@ -205,24 +208,24 @@ app.post('/api/tasks', verifyToken, async (req: AuthRequest, res: Response) => {
 
 // Обновить задачу
 app.patch('/api/tasks/:id', verifyToken, async (req: AuthRequest, res: Response) => {
-  try {
-    const { id } = req.params
-    // Проверяем, что id — строка, а не массив
-    if (!id || Array.isArray(id)) {
-      return res.status(400).json({ error: 'Неверный id' })
+    try {
+        const { id } = req.params
+        // Проверяем, что id — строка, а не массив
+        if (!id || Array.isArray(id)) {
+            return res.status(400).json({ error: 'Неверный id' })
+        }
+
+        const { title, isDone, order } = req.body
+
+        const task = await prisma.task.update({
+            where: { id },
+            data: { title, isDone, order }
+        })
+        res.json(task)
+    } catch (error) {
+        console.error('Error updating task:', error)
+        res.status(500).json({ error: 'Ошибка обновления задачи' })
     }
-
-    const { title, isDone, order } = req.body
-
-    const task = await prisma.task.update({
-      where: { id },
-      data: { title, isDone, order }
-    })
-    res.json(task)
-  } catch (error) {
-    console.error('Error updating task:', error)
-    res.status(500).json({ error: 'Ошибка обновления задачи' })
-  }
 })
 // Удалить задачу
 app.delete('/api/tasks/:id', verifyToken, async (req: AuthRequest, res: Response) => {
