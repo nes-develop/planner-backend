@@ -14,8 +14,8 @@ const app = express()
 const PORT = process.env.PORT || 4000
 
 app.use(cors({
-  origin: 'http://localhost:5173',  // разрешаем только наш фронт
-  credentials: true
+    origin: 'http://localhost:5173',  // разрешаем только наш фронт
+    credentials: true
 }))
 
 app.use(express.json())
@@ -133,6 +133,110 @@ app.get('/api/me', verifyToken, async (req: AuthRequest, res: Response) => {
     } catch (error) {
         console.error('Error fetching user:', error)
         res.status(500).json({ error: 'Внутренняя ошибка сервера' })
+    }
+})
+
+// ========== ЗАДАЧИ ==========
+
+// Получить задачи (по дате или по неделе+год)
+app.get('/api/tasks', verifyToken, async (req: AuthRequest, res: Response) => {
+    try {
+        const { date, weekNumber, year } = req.query
+        const where: any = { userId: req.userId }
+
+        if (date) {
+            // Задачи на конкретный день
+            const startDate = new Date(date as string)
+            const endDate = new Date(startDate)
+            endDate.setDate(endDate.getDate() + 1)
+            where.date = { gte: startDate, lt: endDate }
+        } else if (weekNumber && year) {
+            // Задачи на неделю (type = 'weekly' или 'once' с датой в этой неделе)
+            where.OR = [
+                { type: 'weekly', weekNumber: parseInt(weekNumber as string), year: parseInt(year as string) },
+                {
+                    type: 'once',
+                    date: {
+                        gte: new Date(parseInt(year as string), 0, 1 + (parseInt(weekNumber as string) - 1) * 7),
+                        lt: new Date(parseInt(year as string), 0, 1 + parseInt(weekNumber as string) * 7)
+                    }
+                }
+            ]
+        } else {
+            return res.status(400).json({ error: 'Укажите date или weekNumber+year' })
+        }
+
+        const tasks = await prisma.task.findMany({
+            where,
+            orderBy: { order: 'asc' }
+        })
+        res.json(tasks)
+    } catch (error) {
+        console.error('Error fetching tasks:', error)
+        res.status(500).json({ error: 'Ошибка получения задач' })
+    }
+})
+
+// Создать задачу
+app.post('/api/tasks', verifyToken, async (req: AuthRequest, res: Response) => {
+    try {
+        const { title, date, type, weekNumber, year, order } = req.body
+        if (!title) {
+            return res.status(400).json({ error: 'title обязателен' })
+        }
+
+        const task = await prisma.task.create({
+            data: {
+                title,
+                userId: req.userId!,
+                date: date ? new Date(date) : null,
+                type: type || 'once',
+                weekNumber: weekNumber || null,
+                year: year || null,
+                order: order || 0
+            }
+        })
+        res.status(201).json(task)
+    } catch (error) {
+        console.error('Error creating task:', error)
+        res.status(500).json({ error: 'Ошибка создания задачи' })
+    }
+})
+
+// Обновить задачу
+app.patch('/api/tasks/:id', verifyToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params
+    // Проверяем, что id — строка, а не массив
+    if (!id || Array.isArray(id)) {
+      return res.status(400).json({ error: 'Неверный id' })
+    }
+
+    const { title, isDone, order } = req.body
+
+    const task = await prisma.task.update({
+      where: { id },
+      data: { title, isDone, order }
+    })
+    res.json(task)
+  } catch (error) {
+    console.error('Error updating task:', error)
+    res.status(500).json({ error: 'Ошибка обновления задачи' })
+  }
+})
+// Удалить задачу
+app.delete('/api/tasks/:id', verifyToken, async (req: AuthRequest, res: Response) => {
+    try {
+        const { id } = req.params
+        if (!id || Array.isArray(id)) {
+            return res.status(400).json({ error: 'Неверный id' })
+        }
+
+        await prisma.task.delete({ where: { id } })
+        res.status(204).send()
+    } catch (error) {
+        console.error('Error deleting task:', error)
+        res.status(500).json({ error: 'Ошибка удаления задачи' })
     }
 })
 
