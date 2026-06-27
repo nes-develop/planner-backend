@@ -13,10 +13,15 @@ console.log('JWT_SECRET from env:', process.env.JWT_SECRET)
 const app = express()
 const PORT = process.env.PORT || 4000
 
+//CORS для продакшена — разрешаем только наш домен
+const allowedOrigins = process.env.NODE_ENV === 'production'
+    ? ['http://45.141.103.97', 'https://45.141.103.97']
+    : ['http://localhost:5173'];
+
 app.use(cors({
-    origin: 'http://localhost:5173',  // разрешаем только наш фронт
+    origin: allowedOrigins,
     credentials: true
-}))
+}));
 
 app.use(express.json())
 
